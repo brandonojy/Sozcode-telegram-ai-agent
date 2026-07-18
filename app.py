@@ -87,6 +87,44 @@ async def _build_input_content(client: httpx.AsyncClient, message: dict) -> list
     return content
 
 
+def _describe_tool_call(raw_item) -> str:
+    """Best-effort human-readable description of a tool call.
+
+    Custom @function_tool calls, and OpenAI's hosted tools (web
+    search, code interpreter, ...), don't share the same shape --
+    each is described using whatever fields it actually has, instead
+    of falling back to a generic (and useless) "tool()".
+    """
+    raw_type = getattr(raw_item, "type", None)
+
+    if raw_type == "function_call":
+        return f"{raw_item.name}({raw_item.arguments})"
+
+    if raw_type == "web_search_call":
+        action = raw_item.action
+        if action.type == "search":
+            query = action.query or ", ".join(action.queries or [])
+            return f'web_search("{query}")'
+        if action.type == "open_page":
+            return f"web_search.open_page({action.url})"
+        if action.type == "find_in_page":
+            return f'web_search.find("{action.pattern}" on {action.url})'
+        return "web_search(...)"
+
+    if raw_type == "code_interpreter_call":
+        code = (raw_item.code or "").strip()
+        if len(code) > 150:
+            code = code[:150] + "..."
+        return f"code_interpreter:\n{code}"
+
+    # Fallback for any other hosted tool type (computer use, MCP, ...):
+    # use whatever name/arguments we can find, or at least the raw type,
+    # so we never show a bare, unhelpful "tool()".
+    name = getattr(raw_item, "name", None) or raw_type or "tool"
+    args = getattr(raw_item, "arguments", None)
+    return f"{name}({args or ''})"
+
+
 def _format_agent_trace(new_items: list) -> str | None:
     """Turn a run's reasoning and tool calls into a readable trace, for learning purposes.
 
@@ -100,9 +138,7 @@ def _format_agent_trace(new_items: list) -> str | None:
             for summary in item.raw_item.summary:
                 lines.append(f"🧠 {summary.text}")
         elif item.type == "tool_call_item":
-            name = item.tool_name or "tool"
-            args = getattr(item.raw_item, "arguments", None)
-            lines.append(f"🔧 {name}({args or ''})")
+            lines.append(f"🔧 {_describe_tool_call(item.raw_item)}")
         elif item.type == "tool_call_output_item":
             preview = str(item.output)
             if len(preview) > 200:
