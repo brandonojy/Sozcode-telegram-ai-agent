@@ -163,9 +163,19 @@ Open Telegram, find the bot you created with BotFather, and send it a message. I
 
 ---
 
+## What your bot can read
+
+Your agent can already handle, out of the box:
+- **Text** messages
+- **Photos** (it can see and describe/reason about images)
+- **Documents**, including PDFs (it reads the file directly)
+
+It doesn't yet handle voice notes, video, or stickers -- it'll politely say so if you send one.
+
 ## Extension ideas (if you finish early)
 
 - Add more `@function_tool` functions -- weather, a calculator, a web search.
 - Give your agent a second specialist agent and use `handoffs=[...]` to route between them.
 - Add real conversation memory to the deployed bot (right now each message is stateless) using the SDK's [Sessions](https://openai.github.io/openai-agents-python/sessions/) with a small hosted database like Vercel KV or Upstash Redis.
+- Add voice note support by transcribing with OpenAI's transcription API before handing the text to your agent.
 - Swap Telegram for email (same `agent.py`, different bridge file).
