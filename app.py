@@ -4,34 +4,36 @@ Telegram <-> OpenAI Agents SDK bridge.
 This is infrastructure code -- you do NOT need to edit this file
 for the course. Your agent lives in agent.py.
 
-What this does:
-  1. Vercel deploys this file as a web server (Vercel auto-detects
-     the `app` variable below as an ASGI app).
-  2. Telegram sends every new message to POST /webhook.
-  3. We turn the message (text, and/or a photo/document) into input
-     for your agent and send its reply back to Telegram.
+What this does, in two steps:
+  1. POST /webhook -- Telegram calls this for every new message. It
+     does the minimum possible work (parse the message, upload any
+     photo/document to OpenAI) and immediately hands off to /process,
+     then tells Telegram "got it" (HTTP 200) without waiting for the
+     agent to actually run.
+  2. POST /process -- does the real work: runs the agent (streaming
+     tool-call/reasoning trace messages to Telegram as it goes, for
+     learning purposes -- set SHOW_AGENT_TRACE=false to turn that
+     off), sends the final reply, and forwards any file the agent
+     generated (e.g. code_interpreter building a spreadsheet).
 
-Photos and documents (e.g. PDFs) are uploaded to OpenAI's Files API
-and passed to the agent by reference (file_id) -- the model reads
-them directly, so we never have to parse file contents ourselves.
+Why split it this way: Telegram gives up waiting on a slow webhook
+and retries the *entire* message -- independently of whether we
+eventually would have answered correctly. A model working through a
+few tool calls can easily take longer than Telegram's patience, so
+the only reliable fix is to never make Telegram wait on the agent at
+all. /webhook responds in well under a second every time, regardless
+of how long the agent takes; /process is free to take as long as it
+needs (up to vercel.json's maxDuration), because nothing is waiting
+on it. AGENT_TIMEOUT_SECONDS is a separate, unrelated safety net --
+it bounds worst-case OpenAI API spend if a run gets stuck, not
+Telegram's patience.
 
-If the agent generates a file (e.g. code_interpreter building a
-spreadsheet), we download it from OpenAI and forward it to Telegram
-as a document.
-
-For learning purposes, we also stream the agent's tool calls (and
-its reasoning, if the model supports it) to Telegram as separate
-messages *while the agent is still working*, rather than batching
-them into one message at the end. Set SHOW_AGENT_TRACE=false in
-your environment variables to turn this off.
-
-If a run takes too long (e.g. the model gets stuck retrying
-something), we give up and tell the user, rather than letting Vercel
-kill the function. That matters: if Vercel kills us first, Telegram
-never gets its response and retries the *entire* message -- which
-looks like the bot looping, and burns a full OpenAI run every time
-it retries. AGENT_TIMEOUT_SECONDS must stay comfortably below
-vercel.json's maxDuration so we always get a chance to respond first.
+/process is triggered by a plain HTTPS call from /webhook to this
+same deployment (using Vercel's automatic VERCEL_URL) -- not a
+background task tacked onto /webhook's own execution. Vercel doesn't
+kill a function just because whoever called it stopped listening
+(that's opt-in via "supportsCancellation" in vercel.json, which we
+don't set), so /process keeps running to completion independently.
 """
 
 import asyncio
@@ -54,9 +56,29 @@ TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET")
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 TELEGRAM_FILE_URL = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}"
 SHOW_AGENT_TRACE = os.environ.get("SHOW_AGENT_TRACE", "true").lower() != "false"
-AGENT_TIMEOUT_SECONDS = 150  # keep well under vercel.json's maxDuration (180s)
+AGENT_TIMEOUT_SECONDS = 270  # keep under vercel.json's maxDuration (300s)
 
 openai_client = AsyncOpenAI()
+
+
+def _process_url() -> str:
+    """This deployment's own URL, for /webhook to call /process on.
+
+    VERCEL_URL is set automatically by Vercel at runtime. If it's
+    somehow unavailable, set APP_URL yourself as a fallback (same
+    format: your-project.vercel.app, no https://).
+    """
+    base = os.environ.get("APP_URL") or os.environ.get("VERCEL_URL")
+    if not base:
+        raise RuntimeError(
+            "Can't determine this app's own URL to call /process. Enable "
+            "'System Environment Variables' in your Vercel project's "
+            "Environment Variables settings (provides VERCEL_URL "
+            "automatically), or set an APP_URL environment variable "
+            "yourself."
+        )
+    base = base.removeprefix("https://").removeprefix("http://")
+    return f"https://{base}/process"
 
 
 @app.get("/")
@@ -209,12 +231,11 @@ async def _send_telegram_document(client: httpx.AsyncClient, chat_id: int, filen
 async def _run_agent(client: httpx.AsyncClient, chat_id: int, content: list[dict]) -> tuple[str, list]:
     """Run the agent, streaming trace messages to Telegram as it works.
 
-    Returns (reply_text, new_items). Capped at 6 turns -- generous
-    for a few chained tool calls, but low enough that a model stuck
-    retrying the same thing hits the ceiling and is forced to answer
-    (or explain what went wrong) well before AGENT_TIMEOUT_SECONDS.
+    Returns (reply_text, new_items). max_turns=10 (the SDK's own
+    default) is just a cost/sanity cap now, not a race against
+    Telegram's patience -- see the module docstring.
     """
-    result = Runner.run_streamed(agent, [{"role": "user", "content": content}], max_turns=6)
+    result = Runner.run_streamed(agent, [{"role": "user", "content": content}], max_turns=10)
 
     async for event in result.stream_events():
         if not SHOW_AGENT_TRACE:
@@ -255,29 +276,72 @@ async def telegram_webhook(
     async with httpx.AsyncClient() as client:
         if not is_supported:
             # Stickers, voice notes, video, etc. aren't handled yet.
-            reply_text = "I can only read text, photos, and documents (like PDFs) right now -- try sending one of those!"
-        else:
-            content = await _build_input_content(client, message)
-            new_items = []
-            try:
-                reply_text, new_items = await asyncio.wait_for(
-                    _run_agent(client, chat_id, content),
-                    timeout=AGENT_TIMEOUT_SECONDS,
-                )
-            except asyncio.TimeoutError:
-                # Better to give up and say so than let Vercel kill the
-                # function -- that would leave Telegram without its 200
-                # OK, and it would retry the whole message from scratch.
-                reply_text = "Sorry, that took too long and I had to stop. Try a smaller or more specific request."
+            await client.post(
+                f"{TELEGRAM_API_URL}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": "I can only read text, photos, and documents (like PDFs) right now -- try sending one of those!",
+                },
+            )
+            return {"ok": True}
+
+        # Uploading photos/documents to OpenAI happens here, before we
+        # hand off -- it's fast (seconds, not minutes), unlike the
+        # agent run itself.
+        content = await _build_input_content(client, message)
+
+        # Hand off to /process and return to Telegram right away. We
+        # don't wait for /process to finish (that's the whole point) --
+        # just long enough to be confident the request actually got
+        # sent. The read timeout firing is expected, not an error.
+        try:
+            await client.post(
+                _process_url(),
+                json={"chat_id": chat_id, "content": content},
+                headers={"X-Internal-Secret": TELEGRAM_WEBHOOK_SECRET or ""},
+                timeout=httpx.Timeout(connect=5.0, read=3.0, write=5.0, pool=5.0),
+            )
+        except httpx.TimeoutException:
+            pass
+
+    return {"ok": True}
+
+
+@app.post("/process")
+async def process_message(
+    request: Request,
+    x_internal_secret: str | None = Header(default=None),
+):
+    """Does the actual agent work. Only callable by /webhook (on this
+    same deployment) -- not part of the public API surface.
+    """
+    if TELEGRAM_WEBHOOK_SECRET and x_internal_secret != TELEGRAM_WEBHOOK_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid internal secret")
+
+    body = await request.json()
+    chat_id = body["chat_id"]
+    content = body["content"]
+
+    async with httpx.AsyncClient() as client:
+        new_items = []
+        try:
+            reply_text, new_items = await asyncio.wait_for(
+                _run_agent(client, chat_id, content),
+                timeout=AGENT_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            # A safety net against unbounded OpenAI API spend, not
+            # against Telegram retries -- those are already handled by
+            # /webhook responding immediately, before this ever runs.
+            reply_text = "Sorry, that took too long and I had to stop. Try a smaller or more specific request."
 
         await client.post(
             f"{TELEGRAM_API_URL}/sendMessage",
             json={"chat_id": chat_id, "text": reply_text},
         )
 
-        if is_supported:
-            for container_id, file_id, filename in _extract_generated_files(new_items):
-                file_content = await openai_client.containers.files.content.retrieve(file_id, container_id=container_id)
-                await _send_telegram_document(client, chat_id, filename, await file_content.aread())
+        for container_id, file_id, filename in _extract_generated_files(new_items):
+            file_content = await openai_client.containers.files.content.retrieve(file_id, container_id=container_id)
+            await _send_telegram_document(client, chat_id, filename, await file_content.aread())
 
     return {"ok": True}

@@ -171,10 +171,16 @@ Open Telegram, find the bot you created with BotFather, and send it a message. I
 - Make sure you pushed the commit -- check the **Deployments** tab on Vercel to see if a new deploy actually ran.
 
 **The bot seems stuck in a loop, repeating the same tool calls**
-- `app.py` bounds this two ways: `max_turns=6` caps how many tool-call/reply cycles a single run can take, and a 150-second internal timeout means the bot always replies (even if just "that took too long") instead of hanging until Vercel kills the function. If you still see it happening, check Vercel's **Logs** tab for `/webhook` -- repeated `504 Task timed out` entries a minute or two apart mean Telegram is retrying a stuck message. To stop it immediately:
-  1. Visit `https://<YOUR_VERCEL_URL>/setup` and click **Stop Bot** -- this stops Telegram from retrying and clears anything queued. (Or manually: `https://api.telegram.org/bot<TOKEN>/deleteWebhook?drop_pending_updates=true`.)
-  2. Once things are calm, use the **Set Webhook** button on the same page to resume normal operation.
-- **Don't reach for Vercel's "Pause Project" button for this** -- pausing returns an error to every request (including Telegram's retries), so Telegram just keeps retrying against a paused endpoint. When you resume, the stuck message can fire again immediately. Pausing is the right tool for "I want my whole deployment offline for a while" (e.g. to avoid usage costs), not for stopping one runaway message -- the `/setup` page's Stop Bot button is.
+- This shouldn't happen anymore. `/webhook` responds to Telegram immediately (well under a second), *before* the agent even starts running -- the actual work happens in a separate `/process` request that Telegram never waits on. Telegram only retries a message when it gets tired of waiting for a response, so there's no longer anything for it to wait on and no reason for it to retry. (Earlier versions of this template tried to fix this by racing a timeout instead -- that didn't fully work, because Telegram can give up waiting *before* the timeout even fires. Handing off to `/process` fixes the actual cause instead of a symptom.)
+- `AGENT_TIMEOUT_SECONDS` in `app.py` (270s) still exists, but only as a cost safety net -- it stops a single run from burning unbounded OpenAI API spend if a model gets stuck, unrelated to Telegram at all.
+- If you somehow still see repeated identical tool calls, check Vercel's **Logs** tab for `/webhook` -- it should show exactly one invocation per message, returning `200` in milliseconds. If you see more than one `/webhook` call for the same message, or any non-200 there, something's misconfigured (check `APP_URL`/`VERCEL_URL` below). If instead `/process` shows one long-running invocation, that's just the agent genuinely working through a complex request -- not a loop.
+- To stop a bot immediately for any reason (e.g. it's burning through your OpenAI credits on something you don't want):
+  1. Visit `https://<YOUR_VERCEL_URL>/setup` and click **Stop Bot**. (Or manually: `https://api.telegram.org/bot<TOKEN>/deleteWebhook?drop_pending_updates=true`.)
+  2. Once things are calm, use the **Set Webhook** button on the same page to resume.
+- **Don't reach for Vercel's "Pause Project" button for this** -- pausing is the right tool for "I want my whole deployment offline for a while" (e.g. to avoid usage costs), not for stopping one bot -- the `/setup` page's Stop Bot button is.
+
+**`/webhook` returns an error mentioning `VERCEL_URL` or `APP_URL`**
+- `/webhook` needs to know this deployment's own URL to call `/process`. Vercel provides this automatically as `VERCEL_URL`, but it requires **"Enable access to System Environment Variables"** to be checked in your Vercel project's Environment Variables settings. If you'd rather not enable that, set an `APP_URL` environment variable yourself instead (same value as your Vercel URL, no `https://` prefix).
 
 ---
 
