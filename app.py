@@ -15,6 +15,10 @@ Photos and documents (e.g. PDFs) are uploaded to OpenAI's Files API
 and passed to the agent by reference (file_id) -- the model reads
 them directly, so we never have to parse file contents ourselves.
 
+If the agent generates a file (e.g. code_interpreter building a
+spreadsheet), we download it from OpenAI and forward it to Telegram
+as a document.
+
 For learning purposes, we also send a second message showing the
 agent's tool calls (and its reasoning, if the model supports it)
 before the actual reply. Set SHOW_AGENT_TRACE=false in your
@@ -148,6 +152,34 @@ def _format_agent_trace(new_items: list) -> str | None:
     return "\n".join(lines) if lines else None
 
 
+def _extract_generated_files(new_items: list) -> list[tuple[str, str, str]]:
+    """Find files the agent generated (e.g. a spreadsheet built with
+    code_interpreter) so we can download and forward them.
+
+    When code_interpreter creates a file, the model's reply text
+    carries a "container_file_citation" annotation pointing at it --
+    that's a more reliable signal than listing everything in the
+    sandbox, which would also include any input files we uploaded.
+    """
+    files = []
+    for item in new_items:
+        if item.type != "message_output_item":
+            continue
+        for content in item.raw_item.content:
+            for annotation in getattr(content, "annotations", None) or []:
+                if getattr(annotation, "type", None) == "container_file_citation":
+                    files.append((annotation.container_id, annotation.file_id, annotation.filename))
+    return files
+
+
+async def _send_telegram_document(client: httpx.AsyncClient, chat_id: int, filename: str, file_bytes: bytes) -> None:
+    await client.post(
+        f"{TELEGRAM_API_URL}/sendDocument",
+        data={"chat_id": chat_id},
+        files={"document": (filename, file_bytes)},
+    )
+
+
 @app.post("/webhook")
 async def telegram_webhook(
     request: Request,
@@ -192,5 +224,10 @@ async def telegram_webhook(
             f"{TELEGRAM_API_URL}/sendMessage",
             json={"chat_id": chat_id, "text": reply_text},
         )
+
+        if is_supported:
+            for container_id, file_id, filename in _extract_generated_files(result.new_items):
+                file_content = await openai_client.containers.files.content.retrieve(file_id, container_id=container_id)
+                await _send_telegram_document(client, chat_id, filename, await file_content.aread())
 
     return {"ok": True}

@@ -176,12 +176,18 @@ It doesn't yet handle voice notes, video, or stickers -- it'll politely say so i
 
 `agent.py` starts with two kinds of tools already wired up:
 
-**Custom tools** -- a normal Python function with `@function_tool` on it. `get_current_time`, `roll_dice`, and `read_dynamic_webpage` are examples. Write your own the same way: docstring and type hints matter, since the agent reads them to decide when and how to call the function.
+**Custom tools** -- a normal Python function with `@function_tool` on it. `get_current_time`, `roll_dice`, `read_dynamic_webpage`, and `get_stock_fundamentals` (price + key ratios via [yfinance](https://pypi.org/project/yfinance/), no API key needed) are examples. Write your own the same way: docstring and type hints matter, since the agent reads them to decide when and how to call the function.
 
 **Built-in hosted tools** -- pre-built by OpenAI, no code required, just add them to `tools=`:
 
 - **`WebSearchTool()`** -- live web search.
 - **`CodeInterpreterTool()`** -- runs real Python (pandas etc.) in a sandbox. This is what you want for spreadsheets: if someone sends your bot a CSV or Excel file, the model can open it in a real Python environment and compute exact answers instead of guessing. It works automatically with the photo/document upload already wired up in `app.py` -- nothing else to change.
+
+### Chaining tools: data in, spreadsheet out
+
+Try asking the bot: *"Give me a spreadsheet analysis of Nvidia fundamentals."* It'll chain tools on its own: call `get_stock_fundamentals("NVDA")` for the numbers, then use `code_interpreter` to actually build a `.xlsx` file from them (not just describe the numbers in the chat). Any file the agent generates this way is automatically downloaded and sent to you as a Telegram document, alongside its usual text reply.
+
+This works because `agent.py`'s instructions explicitly tell it to build a real file for "spreadsheet"/"report" requests -- without that nudge, a model will often just summarize the numbers in text instead of reaching for code_interpreter's file-writing ability. The default agent loop already supports calling multiple tools in sequence before answering (see "Seeing the agent's tool calls" below to watch it happen) -- no extra configuration needed for that part.
 
 ### A note on dynamic websites
 

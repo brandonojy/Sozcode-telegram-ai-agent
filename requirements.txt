@@ -2,3 +2,4 @@ openai-agents
 openai
 fastapi
 httpx
+yfinance

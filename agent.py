@@ -66,6 +66,47 @@ def read_dynamic_webpage(url: str) -> str:
     return resp.text[:4000]
 
 
+@function_tool
+def get_stock_fundamentals(ticker: str) -> str:
+    """Get a stock's price and key fundamental metrics, as JSON.
+
+    Pairs well with the code interpreter tool: fetch the numbers here,
+    then have the agent build an actual spreadsheet or chart from them.
+
+    Args:
+        ticker: The stock's ticker symbol, e.g. 'NVDA', or 'D05.SI' for DBS on SGX.
+    """
+    import json
+
+    import yfinance as yf
+
+    info = yf.Ticker(ticker).info
+    fundamentals = {
+        "name": info.get("longName"),
+        "ticker": ticker,
+        "sector": info.get("sector"),
+        "industry": info.get("industry"),
+        "current_price": info.get("currentPrice"),
+        "market_cap": info.get("marketCap"),
+        "trailing_pe": info.get("trailingPE"),
+        "forward_pe": info.get("forwardPE"),
+        "price_to_book": info.get("priceToBook"),
+        "return_on_equity": info.get("returnOnEquity"),
+        "revenue_growth": info.get("revenueGrowth"),
+        "gross_margins": info.get("grossMargins"),
+        "operating_margins": info.get("operatingMargins"),
+        "profit_margins": info.get("profitMargins"),
+        "total_revenue": info.get("totalRevenue"),
+        "net_income": info.get("netIncomeToCommon"),
+        "trailing_eps": info.get("trailingEps"),
+        "debt_to_equity": info.get("debtToEquity"),
+        "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
+        "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
+        "dividend_yield": info.get("dividendYield"),
+    }
+    return json.dumps(fundamentals, indent=2)
+
+
 # Built-in hosted tools -- these run on OpenAI's side, no extra
 # Python packages needed:
 #
@@ -102,8 +143,16 @@ agent = Agent(
 
     Use your tools when they're actually useful. Don't mention that
     you "have tools"; just use them naturally.
+
+    If asked for a "spreadsheet", "report", or similar over data (e.g.
+    stock fundamentals), don't just describe the numbers in the chat --
+    fetch the data with the relevant tool, then use code_interpreter to
+    actually build a real .xlsx file (pandas/openpyxl) with the data
+    organized into a clean table. Any file you create in code_interpreter
+    is automatically sent to the user, so just build it and briefly say
+    what's in it.
     """,
-    tools=[get_current_time, roll_dice, read_dynamic_webpage, *hosted_tools],
+    tools=[get_current_time, roll_dice, read_dynamic_webpage, get_stock_fundamentals, *hosted_tools],
     # STEP 3 (optional): uncomment to pin a specific model.
     # If you leave this out, the SDK uses its default model.
     # model="gpt-4.1-mini",
