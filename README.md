@@ -172,9 +172,25 @@ Your agent can already handle, out of the box:
 
 It doesn't yet handle voice notes, video, or stickers -- it'll politely say so if you send one.
 
+## Tools
+
+`agent.py` starts with two kinds of tools already wired up:
+
+**Custom tools** -- a normal Python function with `@function_tool` on it. `get_current_time`, `roll_dice`, and `read_dynamic_webpage` are examples. Write your own the same way: docstring and type hints matter, since the agent reads them to decide when and how to call the function.
+
+**Built-in hosted tools** -- pre-built by OpenAI, no code required, just add them to `tools=`:
+
+- **`WebSearchTool()`** -- live web search.
+- **`CodeInterpreterTool()`** -- runs real Python (pandas etc.) in a sandbox. This is what you want for spreadsheets: if someone sends your bot a CSV or Excel file, the model can open it in a real Python environment and compute exact answers instead of guessing. It works automatically with the photo/document upload already wired up in `app.py` -- nothing else to change.
+
+### A note on dynamic websites
+
+`CodeInterpreterTool` is a sandboxed Python VM -- it can run code, but it can't open a browser, click things, or wait for JavaScript to render a page. For that, OpenAI has a separate `ComputerTool` (a "computer-use" agent that sees screenshots and issues clicks/keystrokes), but it expects *you* to supply the actual browser it controls (typically via a hosted browser service) -- real infrastructure, well beyond a one-file course project.
+
+For the common case -- reading content off a page that loads its content via JavaScript -- `read_dynamic_webpage` in `agent.py` is enough. It calls a free JS-rendering service ([r.jina.ai](https://jina.ai/reader/)) instead of fetching raw HTML, so it sees the same page a real browser would.
+
 ## Extension ideas (if you finish early)
 
-- Add more `@function_tool` functions -- weather, a calculator, a web search.
 - Give your agent a second specialist agent and use `handoffs=[...]` to route between them.
 - Add real conversation memory to the deployed bot (right now each message is stateless) using the SDK's [Sessions](https://openai.github.io/openai-agents-python/sessions/) with a small hosted database like Vercel KV or Upstash Redis.
 - Add voice note support by transcribing with OpenAI's transcription API before handing the text to your agent.
