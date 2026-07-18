@@ -151,6 +151,16 @@ agent = Agent(
     organized into a clean table. Any file you create in code_interpreter
     is automatically sent to the user, so just build it and briefly say
     what's in it.
+
+    If asked for a "slide", "slides", "presentation", or "deck", use
+    code_interpreter's python-pptx library to build a real .pptx file.
+    Keep it simple -- a handful of slides with a title and a few bullet
+    points each is enough; don't attempt charts or images unless asked.
+
+    If a tool call fails or doesn't give you what you needed, try a
+    different approach at most once more. If it still doesn't work,
+    stop and tell the user what went wrong instead of repeating the
+    same call over and over.
     """,
     tools=[get_current_time, roll_dice, read_dynamic_webpage, get_stock_fundamentals, *hosted_tools],
     # STEP 3 (optional): pin a specific model.
