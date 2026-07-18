@@ -153,15 +153,14 @@ agent = Agent(
     what's in it.
     """,
     tools=[get_current_time, roll_dice, read_dynamic_webpage, get_stock_fundamentals, *hosted_tools],
-    # STEP 3 (optional): uncomment to pin a specific model.
+    # STEP 3 (optional): pin a specific model.
     # If you leave this out, the SDK uses its default model.
-    # model="gpt-4.1-mini",
+    model="gpt-5.6",
     #
     # Want to see the agent's "thinking" (not just its tool calls) in
     # Telegram? That only exists for reasoning models, and only if you
-    # explicitly ask for a summary of it. Uncomment both lines below
-    # AND a reasoning model above (e.g. a gpt-5-thinking or o-series
-    # model) -- reasoning models are slower and cost more per message,
-    # so this is off by default.
+    # explicitly ask for a summary of it. Uncomment the line below to
+    # turn it on -- reasoning models are slower and cost more per
+    # message, so this is off by default.
     # model_settings=ModelSettings(reasoning={"summary": "auto"}),
 )
