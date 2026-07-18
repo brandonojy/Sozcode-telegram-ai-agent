@@ -39,10 +39,12 @@ import os
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from openai import AsyncOpenAI
 
 from agents import Runner
 
+from admin import ADMIN_PAGE_HTML
 from agent import agent
 
 app = FastAPI()
@@ -61,6 +63,14 @@ openai_client = AsyncOpenAI()
 async def health_check():
     """Visit your deployed URL in a browser to confirm it's alive."""
     return {"status": "ok", "agent": agent.name}
+
+
+@app.get("/setup", response_class=HTMLResponse)
+async def setup_page():
+    """A browser-based helper for registering/checking/stopping your
+    Telegram webhook -- see your-deployed-url.vercel.app/setup.
+    """
+    return ADMIN_PAGE_HTML
 
 
 async def _download_telegram_file(client: httpx.AsyncClient, file_id: str) -> tuple[bytes, str]:

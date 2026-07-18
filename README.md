@@ -121,7 +121,12 @@ Paste your URL into a browser. You should see:
 
 ## Part 4 -- Connect Telegram to your deployment
 
-Telegram needs to know where to send messages. Paste this into your **browser address bar** (edit the two placeholders first):
+Telegram needs to know where to send messages. The easiest way: visit **`https://<YOUR_VERCEL_URL>/setup`** in your browser -- a small helper page (already built into this repo) that lets you connect, check the status of, or stop your bot with a few clicks instead of hand-building URLs. Paste in your bot token and a webhook secret of your choosing, and click **Set Webhook**. Every button on that page talks to Telegram directly from your browser -- your token never touches this app's own server.
+
+<details>
+<summary>Prefer to do it manually?</summary>
+
+Paste this into your **browser address bar** (edit the two placeholders first):
 
 ```
 https://api.telegram.org/bot<YOUR_TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<YOUR_VERCEL_URL>/webhook&secret_token=<YOUR_TELEGRAM_WEBHOOK_SECRET>
@@ -132,6 +137,8 @@ https://api.telegram.org/bot<YOUR_TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<YO
 - `<YOUR_TELEGRAM_WEBHOOK_SECRET>` -- the same string you set as `TELEGRAM_WEBHOOK_SECRET` in Vercel
 
 You should see `{"ok":true,"result":true,"description":"Webhook was set"}`.
+
+</details>
 
 ### Talk to your agent
 
@@ -165,9 +172,9 @@ Open Telegram, find the bot you created with BotFather, and send it a message. I
 
 **The bot seems stuck in a loop, repeating the same tool calls**
 - `app.py` bounds this two ways: `max_turns=6` caps how many tool-call/reply cycles a single run can take, and a 150-second internal timeout means the bot always replies (even if just "that took too long") instead of hanging until Vercel kills the function. If you still see it happening, check Vercel's **Logs** tab for `/webhook` -- repeated `504 Task timed out` entries a minute or two apart mean Telegram is retrying a stuck message. To stop it immediately:
-  1. Paste into your browser: `https://api.telegram.org/bot<TOKEN>/deleteWebhook?drop_pending_updates=true` -- this stops Telegram from retrying and clears anything queued.
-  2. Once things are calm, re-run the `setWebhook` command from Part 4 to resume normal operation.
-- **Don't reach for Vercel's "Pause Project" button for this** -- pausing returns an error to every request (including Telegram's retries), so Telegram just keeps retrying against a paused endpoint. When you resume, the stuck message can fire again immediately. Pausing is the right tool for "I want my whole deployment offline for a while" (e.g. to avoid usage costs), not for stopping one runaway message -- `deleteWebhook` is.
+  1. Visit `https://<YOUR_VERCEL_URL>/setup` and click **Stop Bot** -- this stops Telegram from retrying and clears anything queued. (Or manually: `https://api.telegram.org/bot<TOKEN>/deleteWebhook?drop_pending_updates=true`.)
+  2. Once things are calm, use the **Set Webhook** button on the same page to resume normal operation.
+- **Don't reach for Vercel's "Pause Project" button for this** -- pausing returns an error to every request (including Telegram's retries), so Telegram just keeps retrying against a paused endpoint. When you resume, the stuck message can fire again immediately. Pausing is the right tool for "I want my whole deployment offline for a while" (e.g. to avoid usage costs), not for stopping one runaway message -- the `/setup` page's Stop Bot button is.
 
 ---
 
