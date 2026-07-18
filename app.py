@@ -14,6 +14,11 @@ What this does:
 Photos and documents (e.g. PDFs) are uploaded to OpenAI's Files API
 and passed to the agent by reference (file_id) -- the model reads
 them directly, so we never have to parse file contents ourselves.
+
+For learning purposes, we also send a second message showing the
+agent's tool calls (and its reasoning, if the model supports it)
+before the actual reply. Set SHOW_AGENT_TRACE=false in your
+environment variables to turn this off.
 """
 
 import os
@@ -32,6 +37,7 @@ TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET")
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 TELEGRAM_FILE_URL = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}"
+SHOW_AGENT_TRACE = os.environ.get("SHOW_AGENT_TRACE", "true").lower() != "false"
 
 openai_client = AsyncOpenAI()
 
@@ -81,6 +87,31 @@ async def _build_input_content(client: httpx.AsyncClient, message: dict) -> list
     return content
 
 
+def _format_agent_trace(new_items: list) -> str | None:
+    """Turn a run's reasoning and tool calls into a readable trace, for learning purposes.
+
+    "Thinking" lines only appear if agent.py uses a reasoning-capable
+    model with reasoning summaries turned on -- see the note in
+    agent.py. Tool call lines appear for any model.
+    """
+    lines = []
+    for item in new_items:
+        if item.type == "reasoning_item":
+            for summary in item.raw_item.summary:
+                lines.append(f"🧠 {summary.text}")
+        elif item.type == "tool_call_item":
+            name = item.tool_name or "tool"
+            args = getattr(item.raw_item, "arguments", None)
+            lines.append(f"🔧 {name}({args or ''})")
+        elif item.type == "tool_call_output_item":
+            preview = str(item.output)
+            if len(preview) > 200:
+                preview = preview[:200] + "..."
+            lines.append(f"   -> {preview}")
+
+    return "\n".join(lines) if lines else None
+
+
 @app.post("/webhook")
 async def telegram_webhook(
     request: Request,
@@ -109,6 +140,17 @@ async def telegram_webhook(
             content = await _build_input_content(client, message)
             result = await Runner.run(agent, [{"role": "user", "content": content}])
             reply_text = result.final_output or "..."
+
+            if SHOW_AGENT_TRACE:
+                trace = _format_agent_trace(result.new_items)
+                if trace:
+                    # Sent as plain text (no Markdown parsing) since tool
+                    # output can contain characters that would otherwise
+                    # break Telegram's formatting.
+                    await client.post(
+                        f"{TELEGRAM_API_URL}/sendMessage",
+                        json={"chat_id": chat_id, "text": trace},
+                    )
 
         await client.post(
             f"{TELEGRAM_API_URL}/sendMessage",

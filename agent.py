@@ -13,7 +13,7 @@ is plumbing that connects your agent to Telegram. You don't
 need to touch it, but you're welcome to look.
 """
 
-from agents import Agent, CodeInterpreterTool, WebSearchTool, function_tool
+from agents import Agent, CodeInterpreterTool, ModelSettings, WebSearchTool, function_tool
 
 
 # ---------------------------------------------------------------
@@ -107,4 +107,12 @@ agent = Agent(
     # STEP 3 (optional): uncomment to pin a specific model.
     # If you leave this out, the SDK uses its default model.
     # model="gpt-4.1-mini",
+    #
+    # Want to see the agent's "thinking" (not just its tool calls) in
+    # Telegram? That only exists for reasoning models, and only if you
+    # explicitly ask for a summary of it. Uncomment both lines below
+    # AND a reasoning model above (e.g. a gpt-5-thinking or o-series
+    # model) -- reasoning models are slower and cost more per message,
+    # so this is off by default.
+    # model_settings=ModelSettings(reasoning={"summary": "auto"}),
 )

@@ -189,6 +189,21 @@ It doesn't yet handle voice notes, video, or stickers -- it'll politely say so i
 
 For the common case -- reading content off a page that loads its content via JavaScript -- `read_dynamic_webpage` in `agent.py` is enough. It calls a free JS-rendering service ([r.jina.ai](https://jina.ai/reader/)) instead of fetching raw HTML, so it sees the same page a real browser would.
 
+## Seeing the agent's tool calls (and thinking)
+
+For learning purposes, your bot sends a second message before its actual reply, showing what it did to get there -- something like:
+
+```
+🧠 I should check the current stock price.
+🔧 get_stock_price({"ticker": "D05.SI"})
+   -> D05.SI: 71.96 SGD
+```
+
+- 🔧 lines show every tool call and its arguments -- this works for any model, and is usually what you want to demonstrate in class.
+- 🧠 lines show the model's reasoning summary. These **only** appear if `agent.py` is using a reasoning-capable model (a `gpt-5-thinking`- or `o`-series model) *and* has `model_settings=ModelSettings(reasoning={"summary": "auto"})` set -- see the commented-out example at the bottom of `agent.py`. Reasoning models are slower and cost more per message, so this is off by default; regular tool-call tracing works without it.
+
+Turn the whole thing off (e.g. once you want the bot to feel more "finished") by setting `SHOW_AGENT_TRACE=false` in your Vercel environment variables -- no code changes needed.
+
 ## Extension ideas (if you finish early)
 
 - Give your agent a second specialist agent and use `handoffs=[...]` to route between them.
