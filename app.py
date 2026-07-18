@@ -24,8 +24,17 @@ its reasoning, if the model supports it) to Telegram as separate
 messages *while the agent is still working*, rather than batching
 them into one message at the end. Set SHOW_AGENT_TRACE=false in
 your environment variables to turn this off.
+
+If a run takes too long (e.g. the model gets stuck retrying
+something), we give up and tell the user, rather than letting Vercel
+kill the function. That matters: if Vercel kills us first, Telegram
+never gets its response and retries the *entire* message -- which
+looks like the bot looping, and burns a full OpenAI run every time
+it retries. AGENT_TIMEOUT_SECONDS must stay comfortably below
+vercel.json's maxDuration so we always get a chance to respond first.
 """
 
+import asyncio
 import os
 
 import httpx
@@ -43,6 +52,7 @@ TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET")
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 TELEGRAM_FILE_URL = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}"
 SHOW_AGENT_TRACE = os.environ.get("SHOW_AGENT_TRACE", "true").lower() != "false"
+AGENT_TIMEOUT_SECONDS = 150  # keep well under vercel.json's maxDuration (180s)
 
 openai_client = AsyncOpenAI()
 
@@ -186,6 +196,32 @@ async def _send_telegram_document(client: httpx.AsyncClient, chat_id: int, filen
     )
 
 
+async def _run_agent(client: httpx.AsyncClient, chat_id: int, content: list[dict]) -> tuple[str, list]:
+    """Run the agent, streaming trace messages to Telegram as it works.
+
+    Returns (reply_text, new_items). Capped at 6 turns -- generous
+    for a few chained tool calls, but low enough that a model stuck
+    retrying the same thing hits the ceiling and is forced to answer
+    (or explain what went wrong) well before AGENT_TIMEOUT_SECONDS.
+    """
+    result = Runner.run_streamed(agent, [{"role": "user", "content": content}], max_turns=6)
+
+    async for event in result.stream_events():
+        if not SHOW_AGENT_TRACE:
+            continue
+        text = _stream_event_to_message(event)
+        if text:
+            # Sent as plain text (no Markdown parsing) since tool output
+            # can contain characters that would otherwise break
+            # Telegram's formatting.
+            await client.post(
+                f"{TELEGRAM_API_URL}/sendMessage",
+                json={"chat_id": chat_id, "text": text},
+            )
+
+    return result.final_output or "...", result.new_items
+
+
 @app.post("/webhook")
 async def telegram_webhook(
     request: Request,
@@ -212,26 +248,17 @@ async def telegram_webhook(
             reply_text = "I can only read text, photos, and documents (like PDFs) right now -- try sending one of those!"
         else:
             content = await _build_input_content(client, message)
-            result = Runner.run_streamed(agent, [{"role": "user", "content": content}])
-
-            # We always drain the full stream (the run doesn't actually
-            # execute otherwise) -- SHOW_AGENT_TRACE just controls whether
-            # we send what we see as separate Telegram messages while it
-            # happens, or stay quiet until the final reply.
-            async for event in result.stream_events():
-                if not SHOW_AGENT_TRACE:
-                    continue
-                text = _stream_event_to_message(event)
-                if text:
-                    # Sent as plain text (no Markdown parsing) since tool
-                    # output can contain characters that would otherwise
-                    # break Telegram's formatting.
-                    await client.post(
-                        f"{TELEGRAM_API_URL}/sendMessage",
-                        json={"chat_id": chat_id, "text": text},
-                    )
-
-            reply_text = result.final_output or "..."
+            new_items = []
+            try:
+                reply_text, new_items = await asyncio.wait_for(
+                    _run_agent(client, chat_id, content),
+                    timeout=AGENT_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                # Better to give up and say so than let Vercel kill the
+                # function -- that would leave Telegram without its 200
+                # OK, and it would retry the whole message from scratch.
+                reply_text = "Sorry, that took too long and I had to stop. Try a smaller or more specific request."
 
         await client.post(
             f"{TELEGRAM_API_URL}/sendMessage",
@@ -239,7 +266,7 @@ async def telegram_webhook(
         )
 
         if is_supported:
-            for container_id, file_id, filename in _extract_generated_files(result.new_items):
+            for container_id, file_id, filename in _extract_generated_files(new_items):
                 file_content = await openai_client.containers.files.content.retrieve(file_id, container_id=container_id)
                 await _send_telegram_document(client, chat_id, filename, await file_content.aread())
 
