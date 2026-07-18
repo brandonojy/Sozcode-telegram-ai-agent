@@ -19,10 +19,11 @@ If the agent generates a file (e.g. code_interpreter building a
 spreadsheet), we download it from OpenAI and forward it to Telegram
 as a document.
 
-For learning purposes, we also send a second message showing the
-agent's tool calls (and its reasoning, if the model supports it)
-before the actual reply. Set SHOW_AGENT_TRACE=false in your
-environment variables to turn this off.
+For learning purposes, we also stream the agent's tool calls (and
+its reasoning, if the model supports it) to Telegram as separate
+messages *while the agent is still working*, rather than batching
+them into one message at the end. Set SHOW_AGENT_TRACE=false in
+your environment variables to turn this off.
 """
 
 import os
@@ -129,27 +130,32 @@ def _describe_tool_call(raw_item) -> str:
     return f"{name}({args or ''})"
 
 
-def _format_agent_trace(new_items: list) -> str | None:
-    """Turn a run's reasoning and tool calls into a readable trace, for learning purposes.
+def _stream_event_to_message(event) -> str | None:
+    """Turn one live streaming event into a Telegram message, or None to
+    skip it. Called as the agent works, not after it's done -- this is
+    what makes the trace show up as separate messages in real time.
 
     "Thinking" lines only appear if agent.py uses a reasoning-capable
     model with reasoning summaries turned on -- see the note in
     agent.py. Tool call lines appear for any model.
     """
-    lines = []
-    for item in new_items:
-        if item.type == "reasoning_item":
-            for summary in item.raw_item.summary:
-                lines.append(f"🧠 {summary.text}")
-        elif item.type == "tool_call_item":
-            lines.append(f"🔧 {_describe_tool_call(item.raw_item)}")
-        elif item.type == "tool_call_output_item":
-            preview = str(item.output)
-            if len(preview) > 200:
-                preview = preview[:200] + "..."
-            lines.append(f"   -> {preview}")
+    if event.type != "run_item_stream_event":
+        return None
 
-    return "\n".join(lines) if lines else None
+    if event.name == "tool_called":
+        return f"🔧 {_describe_tool_call(event.item.raw_item)}"
+
+    if event.name == "tool_output":
+        preview = str(event.item.output)
+        if len(preview) > 200:
+            preview = preview[:200] + "..."
+        return f"   -> {preview}"
+
+    if event.name == "reasoning_item_created":
+        summaries = [summary.text for summary in event.item.raw_item.summary]
+        return "\n".join(f"🧠 {text}" for text in summaries) if summaries else None
+
+    return None
 
 
 def _extract_generated_files(new_items: list) -> list[tuple[str, str, str]]:
@@ -206,19 +212,26 @@ async def telegram_webhook(
             reply_text = "I can only read text, photos, and documents (like PDFs) right now -- try sending one of those!"
         else:
             content = await _build_input_content(client, message)
-            result = await Runner.run(agent, [{"role": "user", "content": content}])
-            reply_text = result.final_output or "..."
+            result = Runner.run_streamed(agent, [{"role": "user", "content": content}])
 
-            if SHOW_AGENT_TRACE:
-                trace = _format_agent_trace(result.new_items)
-                if trace:
+            # We always drain the full stream (the run doesn't actually
+            # execute otherwise) -- SHOW_AGENT_TRACE just controls whether
+            # we send what we see as separate Telegram messages while it
+            # happens, or stay quiet until the final reply.
+            async for event in result.stream_events():
+                if not SHOW_AGENT_TRACE:
+                    continue
+                text = _stream_event_to_message(event)
+                if text:
                     # Sent as plain text (no Markdown parsing) since tool
                     # output can contain characters that would otherwise
                     # break Telegram's formatting.
                     await client.post(
                         f"{TELEGRAM_API_URL}/sendMessage",
-                        json={"chat_id": chat_id, "text": trace},
+                        json={"chat_id": chat_id, "text": text},
                     )
+
+            reply_text = result.final_output or "..."
 
         await client.post(
             f"{TELEGRAM_API_URL}/sendMessage",

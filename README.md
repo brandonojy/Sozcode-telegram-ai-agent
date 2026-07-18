@@ -197,15 +197,21 @@ This works because `agent.py`'s instructions explicitly tell it to build a real 
 
 For the common case -- reading content off a page that loads its content via JavaScript -- `read_dynamic_webpage` in `agent.py` is enough. It calls a free JS-rendering service ([r.jina.ai](https://jina.ai/reader/)) instead of fetching raw HTML, so it sees the same page a real browser would.
 
-## Seeing the agent's tool calls (and thinking)
+## Seeing the agent's tool calls (and thinking) -- live
 
-For learning purposes, your bot sends a second message before its actual reply, showing what it did to get there -- something like:
+For learning purposes, your bot streams what it's doing to Telegram as separate messages *while it's still working*, not batched into one message after the fact. Ask for something that needs a few steps and you'll see them arrive one at a time, in real time, something like:
 
 ```
 🧠 I should check the current stock price.
 🔧 get_stock_price({"ticker": "D05.SI"})
+```
+*(a moment later)*
+```
    -> D05.SI: 71.96 SGD
 ```
+*(then the actual reply, once it's ready)*
+
+This uses the SDK's streaming mode (`Runner.run_streamed`, iterating `stream_events()`) rather than waiting for the whole run to finish -- each tool call, tool result, and reasoning step is sent to Telegram the moment it happens.
 
 - 🔧 lines show every tool call and its arguments -- this works for any model, and is usually what you want to demonstrate in class.
 - 🧠 lines show the model's reasoning summary. These **only** appear if `agent.py` is using a reasoning-capable model (a `gpt-5-thinking`- or `o`-series model) *and* has `model_settings=ModelSettings(reasoning={"summary": "auto"})` set -- see the commented-out example at the bottom of `agent.py`. Reasoning models are slower and cost more per message, so this is off by default; regular tool-call tracing works without it.
