@@ -2,7 +2,7 @@
 
 Eight notebooks that build up the OpenAI Agents SDK concept by concept, ending with a direct bridge into the capstone repo (`agent.py`, `app.py`, etc. one level up).
 
-Each notebook is self-contained -- its first code cell installs `openai-agents` and asks for an API key via `getpass`, so any of them can be opened fresh (e.g. copied individually into Colab or whatever platform you're teaching on) without depending on another notebook having run first in the same session.
+Each notebook is self-contained -- its first code cell installs `openai-agents` and sets your API key directly (`os.environ["OPENAI_API_KEY"] = "sk-..."`), so any of them can be opened fresh (e.g. copied individually into Colab or whatever platform you're teaching on) without depending on another notebook having run first in the same session. This is intentionally the simplest possible option for a 2-day intro course rather than `getpass`/secret-manager patterns -- just remind learners not to share or commit a notebook with their key still pasted in.
 
 ## Suggested pacing
 
