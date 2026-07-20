@@ -4,7 +4,7 @@ You're going to build an AI agent with the [OpenAI Agents SDK](https://openai.gi
 
 **The only file you will ever edit is [`agent.py`](agent.py).** Everything else is plumbing that's already wired up for you.
 
-New to the Agents SDK? Work through [`notebooks/`](notebooks/) first -- it builds up every concept used here (agents, tools, multi-tool iteration, hosted tools, memory) step by step before you touch this repo.
+New to the Agents SDK? Work through [`notebooks/`](notebooks/) first -- it builds up every concept used here (agents, tools, multi-tool iteration, hosted tools, file handling, memory) step by step before you touch this repo.
 
 ## How it fits together
 

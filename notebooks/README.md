@@ -1,6 +1,6 @@
 # Course Notebooks
 
-Seven notebooks that build up the OpenAI Agents SDK concept by concept, ending with a direct bridge into the capstone repo (`agent.py`, `app.py`, etc. one level up).
+Eight notebooks that build up the OpenAI Agents SDK concept by concept, ending with a direct bridge into the capstone repo (`agent.py`, `app.py`, etc. one level up).
 
 Each notebook is self-contained -- its first code cell installs `openai-agents` and asks for an API key via `getpass`, so any of them can be opened fresh (e.g. copied individually into Colab or whatever platform you're teaching on) without depending on another notebook having run first in the same session.
 
@@ -9,9 +9,9 @@ Each notebook is self-contained -- its first code cell installs `openai-agents` 
 | Day | Notebooks | Theme |
 |---|---|---|
 | Day 1 | `00_setup`, `01_your_first_agent`, `02_giving_your_agent_tools`, `03_seeing_how_the_agent_thinks` | Core concepts: what an agent is, tools, and watching multi-tool iteration happen |
-| Day 2 | `04_hosted_tools`, `05_multi_turn_conversations`, `06_from_notebook_to_telegram_bot` | Built-in capabilities, memory, then straight into the capstone deployment (repo root `README.md`) |
+| Day 2 | `04_hosted_tools`, `05_working_with_files`, `06_multi_turn_conversations`, `07_from_notebook_to_telegram_bot` | Built-in capabilities, file handling, memory, then straight into the capstone deployment (repo root `README.md`) |
 
-`06_from_notebook_to_telegram_bot.ipynb` is the hinge point -- it doesn't teach anything new, it just maps each notebook's concept onto where it actually lives in `agent.py`/`app.py`, so the jump from "notebook exercises" to "real file in a folder" isn't a leap.
+`07_from_notebook_to_telegram_bot.ipynb` is the hinge point -- it doesn't teach anything new, it just maps each notebook's concept onto where it actually lives in `agent.py`/`app.py`, so the jump from "notebook exercises" to "real file in a folder" isn't a leap.
 
 ## Verification note
 
