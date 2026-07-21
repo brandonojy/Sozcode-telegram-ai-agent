@@ -1,6 +1,6 @@
 # Course Notebooks
 
-Eight notebooks that build up the OpenAI Agents SDK concept by concept, ending with a direct bridge into the capstone repo (`agent.py`, `app.py`, etc. one level up).
+Eight core notebooks that build up the OpenAI Agents SDK concept by concept, ending with a direct bridge into the capstone repo (`agent.py`, `app.py`, etc. one level up) -- plus one optional bonus notebook.
 
 Each notebook is self-contained -- its first code cell installs `openai-agents` and sets your API key directly as an argument (`set_default_openai_key("sk-...")`, the SDK's own function for this -- no environment variables involved), so any of them can be opened fresh (e.g. copied individually into Colab or whatever platform you're teaching on) without depending on another notebook having run first in the same session. This is intentionally the simplest possible option for a 2-day intro course rather than `getpass`/secret-manager patterns -- just remind learners not to share or commit a notebook with their key still pasted in.
 
@@ -14,6 +14,12 @@ Note for `05_working_with_files.ipynb` specifically: it also constructs a plain 
 | Day 2 | `04_hosted_tools`, `05_working_with_files`, `06_multi_turn_conversations`, `07_from_notebook_to_telegram_bot` | Built-in capabilities, file handling, memory, then straight into the capstone deployment (repo root `README.md`) |
 
 `07_from_notebook_to_telegram_bot.ipynb` is the hinge point -- it doesn't teach anything new, it just maps each notebook's concept onto where it actually lives in `agent.py`/`app.py`, so the jump from "notebook exercises" to "real file in a folder" isn't a leap.
+
+## Bonus (optional): `08_bonus_browser_navigation.ipynb`
+
+Covers giving an agent real browser navigation (clicking, filling forms, reading live pages) via [Playwright MCP](https://github.com/microsoft/playwright-mcp) and `MCPServerStdio`, plus wrapping it as a single clean tool with `agent.as_tool(...)` instead of exposing two dozen raw browser primitives directly.
+
+This is the one notebook that isn't pure Python -- it needs [Node.js](https://nodejs.org) installed (for `npx`) -- and what it builds is notebook-only: it does **not** plug into the deployed Telegram bot, for the same reason `ComputerTool` doesn't (see notebook 04) -- Vercel's Python Functions can't spawn a local browser process. The notebook explains what *would* be needed to bridge that gap (a remotely-hosted browser/MCP service). Good for learners who finish early and want to see how far the same patterns extend; skip it if Node.js isn't set up in your teaching environment.
 
 ## Verification note
 
