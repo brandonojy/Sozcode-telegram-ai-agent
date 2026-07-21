@@ -15,11 +15,11 @@ Note for `05_working_with_files.ipynb` specifically: it also constructs a plain 
 
 `07_from_notebook_to_telegram_bot.ipynb` is the hinge point -- it doesn't teach anything new, it just maps each notebook's concept onto where it actually lives in `agent.py`/`app.py`, so the jump from "notebook exercises" to "real file in a folder" isn't a leap.
 
-## Bonus (optional): `08_bonus_browser_navigation.ipynb`
+## Bonus (optional): `08_bonus_agentic_browsing.ipynb`
 
-Covers giving an agent real browser navigation (clicking, filling forms, reading live pages) via [Playwright MCP](https://github.com/microsoft/playwright-mcp) and `MCPServerStdio`, plus wrapping it as a single clean tool with `agent.as_tool(...)` instead of exposing two dozen raw browser primitives directly.
+Covers giving an agent **agentic web navigation** -- reading a page, deciding it needs to look at a linked page instead, and fetching that one too -- using [Jina Reader](https://jina.ai/reader/), the exact same service `read_dynamic_webpage` in the capstone's `agent.py` already uses. No new infrastructure: it's pure Python, and the "agentic" part isn't special code, it's just the ordinary tool-calling loop from notebook 03 given a tool whose output includes a list of links to choose from (`X-With-Links-Summary`).
 
-This is the one notebook that isn't pure Python -- it needs [Node.js](https://nodejs.org) installed (for `npx`) -- and what it builds is notebook-only: it does **not** plug into the deployed Telegram bot, for the same reason `ComputerTool` doesn't (see notebook 04) -- Vercel's Python Functions can't spawn a local browser process. The notebook explains what *would* be needed to bridge that gap (a remotely-hosted browser/MCP service). Good for learners who finish early and want to see how far the same patterns extend; skip it if Node.js isn't set up in your teaching environment.
+Ends with a real, verifiable multi-hop task (find a fact that's on a *linked* page, not the starting page) so learners can watch the agent choose its own next URL in the trace, not take it on faith. Good for learners who finish early; unlike an earlier draft of this notebook (which used Playwright MCP), this one needs nothing beyond what's already installed, and directly explains the one real gap between it and what's deployed -- the production tool doesn't request the links summary, so the live bot's browsing is effectively single-hop today.
 
 ## Verification note
 
