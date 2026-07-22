@@ -251,6 +251,8 @@ Besides Telegram, both agents also have a simple browser-based chat UI:
 
 Both pages are the same simple UI (`chat_ui.py`, shared between them, distinguished only by a color-coded badge) -- type a message, see the agent's tool-call trace above each reply, keep chatting. Conversation history is kept in the browser tab (lost on refresh), no database involved. The shared chat-handling logic lives in `trace_utils.py`.
 
+**`/chat` also offers generated files as downloads.** Ask it for a spreadsheet the same way you would on Telegram, and the reply comes with a download button. The file is embedded directly in that same response as a base64 data URI rather than served from a separate endpoint -- Vercel functions don't share memory between requests, so there'd be nowhere to stash the file for a later "download" request to find. `local_agent`'s chat doesn't have this (no `code_interpreter` -- see below), but doesn't need it either: anything a shell command creates is already sitting on your own disk.
+
 ## Extension ideas (if you finish early)
 
 - Give your agent a second specialist agent and use `handoffs=[...]` to route between them.
