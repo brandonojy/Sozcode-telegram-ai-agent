@@ -245,6 +245,17 @@ Turn the whole thing off (e.g. once you want the bot to feel more "finished") by
 
 **Read this before running it:** the shell tool is configured with `needs_approval=False` -- commands the model decides to run execute immediately, with no confirmation step, exactly as if you'd typed them into your own terminal. That's a reasonable choice *because* it's local-only and you're the only one who can trigger it, but it means real destructive commands (deleting files, etc.) are only prevented by the agent's own instructions telling it to be careful -- not by any code-level safeguard. If you want a confirmation step, `ShellTool(needs_approval=True, on_approval=...)` in `local_agent.py` is where to add it.
 
+## Web chat -- two separate pages, two separate agents
+
+Besides Telegram, both agents also have a simple browser-based chat UI:
+
+| Page | Agent | Run it with | Safe to deploy? |
+|---|---|---|---|
+| `/chat` on your deployed URL (or `http://127.0.0.1:8000/chat` locally) | The same `agent` your Telegram bot uses | Already part of `app.py` -- nothing extra to run | Yes -- no shell access, same agent either way |
+| `http://127.0.0.1:8001/chat` | `local_agent` (shell-enabled) | `uvicorn local_web:app --port 8001 --reload` | **No -- local only.** Not deployed by Vercel (nothing in `vercel.json` references `local_web.py`); never expose this to a network you don't fully trust. |
+
+Both pages are the same simple UI (`chat_ui.py`, shared between them, distinguished only by a color-coded badge) -- type a message, see the agent's tool-call trace above each reply, keep chatting. Conversation history is kept in the browser tab (lost on refresh), no database involved. The shared chat-handling logic lives in `trace_utils.py`.
+
 ## Extension ideas (if you finish early)
 
 - Give your agent a second specialist agent and use `handoffs=[...]` to route between them.

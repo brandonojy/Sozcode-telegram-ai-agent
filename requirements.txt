@@ -3,3 +3,4 @@ openai
 fastapi
 httpx
 yfinance
+uvicorn

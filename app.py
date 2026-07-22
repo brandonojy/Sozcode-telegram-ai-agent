@@ -48,6 +48,8 @@ from agents import Runner
 
 from admin import ADMIN_PAGE_HTML
 from agent import agent
+from chat_ui import render_chat_page
+from trace_utils import run_chat_turn, stream_event_to_message
 
 app = FastAPI()
 
@@ -95,6 +97,31 @@ async def setup_page():
     return ADMIN_PAGE_HTML
 
 
+@app.get("/chat", response_class=HTMLResponse)
+async def chat_page():
+    """A simple web chat UI talking to the exact same agent as your
+    Telegram bot. Safe to deploy alongside Telegram -- no shell
+    access, same agent either way.
+    """
+    return render_chat_page(
+        title="Web Chat",
+        subtitle="Talking to the same agent as your Telegram bot.",
+        badge="🌐 Web",
+        badge_color="#2563eb",
+    )
+
+
+@app.post("/chat")
+async def chat_send(request: Request):
+    """Handles one message from the /chat page above. Runs
+    synchronously (unlike /webhook) -- a browser tab just waits for
+    the response, it doesn't retry on its own the way Telegram does,
+    so there's no need for the /webhook+/process split here.
+    """
+    body = await request.json()
+    return await run_chat_turn(agent, body["message"], body.get("history", []))
+
+
 async def _download_telegram_file(client: httpx.AsyncClient, file_id: str) -> tuple[bytes, str]:
     """Resolve a Telegram file_id to its raw bytes and filename."""
     resp = await client.get(f"{TELEGRAM_API_URL}/getFile", params={"file_id": file_id})
@@ -132,72 +159,6 @@ async def _build_input_content(client: httpx.AsyncClient, message: dict) -> list
         content.append({"type": "input_file", "file_id": uploaded.id, "filename": filename})
 
     return content
-
-
-def _describe_tool_call(raw_item) -> str:
-    """Best-effort human-readable description of a tool call.
-
-    Custom @function_tool calls, and OpenAI's hosted tools (web
-    search, code interpreter, ...), don't share the same shape --
-    each is described using whatever fields it actually has, instead
-    of falling back to a generic (and useless) "tool()".
-    """
-    raw_type = getattr(raw_item, "type", None)
-
-    if raw_type == "function_call":
-        return f"{raw_item.name}({raw_item.arguments})"
-
-    if raw_type == "web_search_call":
-        action = raw_item.action
-        if action.type == "search":
-            query = action.query or ", ".join(action.queries or [])
-            return f'web_search("{query}")'
-        if action.type == "open_page":
-            return f"web_search.open_page({action.url})"
-        if action.type == "find_in_page":
-            return f'web_search.find("{action.pattern}" on {action.url})'
-        return "web_search(...)"
-
-    if raw_type == "code_interpreter_call":
-        code = (raw_item.code or "").strip()
-        if len(code) > 150:
-            code = code[:150] + "..."
-        return f"code_interpreter:\n{code}"
-
-    # Fallback for any other hosted tool type (computer use, MCP, ...):
-    # use whatever name/arguments we can find, or at least the raw type,
-    # so we never show a bare, unhelpful "tool()".
-    name = getattr(raw_item, "name", None) or raw_type or "tool"
-    args = getattr(raw_item, "arguments", None)
-    return f"{name}({args or ''})"
-
-
-def _stream_event_to_message(event) -> str | None:
-    """Turn one live streaming event into a Telegram message, or None to
-    skip it. Called as the agent works, not after it's done -- this is
-    what makes the trace show up as separate messages in real time.
-
-    "Thinking" lines only appear if agent.py uses a reasoning-capable
-    model with reasoning summaries turned on -- see the note in
-    agent.py. Tool call lines appear for any model.
-    """
-    if event.type != "run_item_stream_event":
-        return None
-
-    if event.name == "tool_called":
-        return f"🔧 {_describe_tool_call(event.item.raw_item)}"
-
-    if event.name == "tool_output":
-        preview = str(event.item.output)
-        if len(preview) > 200:
-            preview = preview[:200] + "..."
-        return f"   -> {preview}"
-
-    if event.name == "reasoning_item_created":
-        summaries = [summary.text for summary in event.item.raw_item.summary]
-        return "\n".join(f"🧠 {text}" for text in summaries) if summaries else None
-
-    return None
 
 
 def _extract_generated_files(new_items: list) -> list[tuple[str, str, str]]:
@@ -240,7 +201,7 @@ async def _run_agent(client: httpx.AsyncClient, chat_id: int, content: list[dict
     async for event in result.stream_events():
         if not SHOW_AGENT_TRACE:
             continue
-        text = _stream_event_to_message(event)
+        text = stream_event_to_message(event)
         if text:
             # Sent as plain text (no Markdown parsing) since tool output
             # can contain characters that would otherwise break
