@@ -237,6 +237,14 @@ This uses the SDK's streaming mode (`Runner.run_streamed`, iterating `stream_eve
 
 Turn the whole thing off (e.g. once you want the bot to feel more "finished") by setting `SHOW_AGENT_TRACE=false` in your Vercel environment variables -- no code changes needed.
 
+## `local_agent.py` -- a separate agent with real shell access
+
+`local_agent.py` and `local_agent_chat.py` are a **local-only** counterpart to your Telegram agent -- run `python local_agent_chat.py` to chat with an agent that has every tool your Telegram bot has, plus a real shell tool that can run commands on your own machine.
+
+**This is not part of the Telegram bot.** `app.py` never imports `local_agent.py`, and there's no path from a Telegram message to shell access. It's here for local development only.
+
+**Read this before running it:** the shell tool is configured with `needs_approval=False` -- commands the model decides to run execute immediately, with no confirmation step, exactly as if you'd typed them into your own terminal. That's a reasonable choice *because* it's local-only and you're the only one who can trigger it, but it means real destructive commands (deleting files, etc.) are only prevented by the agent's own instructions telling it to be careful -- not by any code-level safeguard. If you want a confirmation step, `ShellTool(needs_approval=True, on_approval=...)` in `local_agent.py` is where to add it.
+
 ## Extension ideas (if you finish early)
 
 - Give your agent a second specialist agent and use `handoffs=[...]` to route between them.
