@@ -22,7 +22,6 @@ import asyncio
 
 from agents import (
     Agent,
-    CodeInterpreterTool,
     ShellCallOutcome,
     ShellCommandOutput,
     ShellCommandRequest,
@@ -145,8 +144,10 @@ local_agent = Agent(
     instructions="""
     You are a helpful local assistant with real shell access on this
     machine. Use the shell tool to inspect files, run scripts, check
-    versions, and so on. You also have a few other tools: time, dice,
-    reading webpages, stock data, web search, and code interpreter.
+    versions, and so on -- including precise computation (e.g. run
+    `python3 -c "..."` through the shell rather than doing math
+    yourself). You also have a few other tools: time, dice, reading
+    webpages, stock data, and web search.
 
     Shell commands you run execute for real, immediately, with no
     confirmation step. Don't run destructive commands (deleting files,
@@ -160,7 +161,6 @@ local_agent = Agent(
         get_stock_fundamentals,
         shell_tool,
         WebSearchTool(),
-        CodeInterpreterTool(tool_config={"type": "code_interpreter", "container": {"type": "auto"}}),
     ],
     model="gpt-5.6",
 )

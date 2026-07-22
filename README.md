@@ -238,6 +238,8 @@ Turn the whole thing off (e.g. once you want the bot to feel more "finished") by
 
 **Read this before running it:** the shell tool is configured with `needs_approval=False` -- commands the model decides to run execute immediately, with no confirmation step, exactly as if you'd typed them into your own terminal. That's a reasonable choice *because* it's local-only and you're the only one who can trigger it, but it means real destructive commands (deleting files, etc.) are only prevented by the agent's own instructions telling it to be careful -- not by any code-level safeguard. If you want a confirmation step, `ShellTool(needs_approval=True, on_approval=...)` in `local_agent.py` is where to add it.
 
+**No `code_interpreter` here, unlike the Telegram agent.** OpenAI's API rejects `code_interpreter` and `shell` in the same agent outright (`400: code_interpreter and shell with an OpenAI-managed container cannot be used together at the same time`) -- found this the hard way when the local web chat returned a bare 500 with a real API key. Not a problem in practice: with real shell access, `local_agent` can just run `python3 -c "..."` directly instead of reaching for a separate sandboxed tool.
+
 ## Web chat -- two separate pages, two separate agents
 
 Besides Telegram, both agents also have a simple browser-based chat UI:
