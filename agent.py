@@ -165,7 +165,7 @@ agent = Agent(
     tools=[get_current_time, roll_dice, read_dynamic_webpage, get_stock_fundamentals, *hosted_tools],
     # STEP 3 (optional): pin a specific model.
     # If you leave this out, the SDK uses its default model.
-    model="gpt-5.6",
+    model="gpt-5.6-sol",
     #
     # Want to see the agent's "thinking" (not just its tool calls) in
     # Telegram? That only exists for reasoning models, and only if you
