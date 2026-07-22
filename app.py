@@ -37,6 +37,7 @@ don't set), so /process keeps running to completion independently.
 """
 
 import asyncio
+import base64
 import os
 
 import httpx
@@ -124,9 +125,34 @@ async def chat_send(request: Request):
     synchronously (unlike /webhook) -- a browser tab just waits for
     the response, it doesn't retry on its own the way Telegram does,
     so there's no need for the /webhook+/process split here.
+
+    Any file the agent generates (e.g. code_interpreter building a
+    spreadsheet) is downloaded and embedded directly in the response
+    as a base64 data URI, so the page can offer it as a download with
+    no extra request. That's deliberate: Vercel functions don't share
+    memory between requests, so there's nowhere to stash a file
+    server-side for a later "download" request to find. (This does
+    mean very large generated files could bump into Vercel's 4.5 MB
+    response size limit -- a real constraint, not something to worry
+    about for typical spreadsheets/decks.)
     """
     body = await request.json()
-    return await run_chat_turn(agent, body["message"], body.get("history", []))
+    result = await run_chat_turn(agent, body["message"], body.get("history", []))
+    new_items = result.pop("new_items")
+
+    files = []
+    for container_id, file_id, filename in _extract_generated_files(new_items):
+        file_content = await openai_client.containers.files.content.retrieve(file_id, container_id=container_id)
+        file_bytes = await file_content.aread()
+        files.append(
+            {
+                "filename": filename,
+                "data_url": f"data:application/octet-stream;base64,{base64.b64encode(file_bytes).decode()}",
+            }
+        )
+
+    result["files"] = files
+    return result
 
 
 async def _download_telegram_file(client: httpx.AsyncClient, file_id: str) -> tuple[bytes, str]:

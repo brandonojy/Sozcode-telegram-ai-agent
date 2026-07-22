@@ -46,4 +46,6 @@ async def chat_page():
 @app.post("/chat")
 async def chat_send(request: Request):
     body = await request.json()
-    return await run_chat_turn(local_agent, body["message"], body.get("history", []))
+    result = await run_chat_turn(local_agent, body["message"], body.get("history", []))
+    result.pop("new_items")  # not JSON-serializable; local_agent has no code_interpreter to generate files anyway
+    return result

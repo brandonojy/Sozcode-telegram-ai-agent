@@ -93,8 +93,11 @@ def stream_event_to_message(event) -> str | None:
 
 async def run_chat_turn(agent, message: str, history: list) -> dict:
     """Run one turn of a text chat against `agent`, returning the
-    reply, a readable trace of what happened, and the updated
-    history to send back on the next turn.
+    reply, a readable trace of what happened, the updated history to
+    send back on the next turn, and the raw new_items (for callers
+    that want to do more with the run, e.g. extracting generated
+    files -- new_items is NOT JSON-serializable, so pop it before
+    returning an HTTP response if you don't need it).
     """
     history = [*history, {"role": "user", "content": message}]
     result = Runner.run_streamed(agent, history, max_turns=10)
@@ -109,4 +112,5 @@ async def run_chat_turn(agent, message: str, history: list) -> dict:
         "reply": result.final_output or "...",
         "trace": trace,
         "history": result.to_input_list(),
+        "new_items": result.new_items,
     }

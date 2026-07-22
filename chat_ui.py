@@ -98,6 +98,27 @@ def render_chat_page(title: str, subtitle: str, badge: str, badge_color: str) ->
     padding-left: 0.6rem;
   }}
   .status {{ font-size: 0.8rem; color: var(--muted); padding: 0 0.2rem; }}
+  .files {{
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 0.35rem 0 0;
+  }}
+  .file-link {{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: fit-content;
+    max-width: 80%;
+    padding: 0.5rem 0.8rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-size: 0.85rem;
+    text-decoration: none;
+  }}
+  .file-link:hover {{ border-color: var(--accent); }}
   form {{
     display: flex;
     gap: 0.6rem;
@@ -177,6 +198,25 @@ def render_chat_page(title: str, subtitle: str, badge: str, badge_color: str) ->
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }}
 
+  function addFiles(files) {{
+    if (!files || !files.length) return;
+    const row = document.createElement("div");
+    row.className = "msg agent";
+    const wrap = document.createElement("div");
+    wrap.className = "files";
+    files.forEach((f) => {{
+      const link = document.createElement("a");
+      link.className = "file-link";
+      link.href = f.data_url;
+      link.download = f.filename;
+      link.textContent = "📄 Download " + f.filename;
+      wrap.appendChild(link);
+    }});
+    row.appendChild(wrap);
+    messagesEl.appendChild(row);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }}
+
   function addStatus(text) {{
     const el = document.createElement("div");
     el.className = "status";
@@ -211,6 +251,7 @@ def render_chat_page(title: str, subtitle: str, badge: str, badge_color: str) ->
       }} else {{
         addTrace(data.trace);
         addBubble("agent", data.reply);
+        addFiles(data.files);
         history = data.history || history;
       }}
     }} catch (err) {{
