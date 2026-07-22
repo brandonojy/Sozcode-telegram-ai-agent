@@ -58,14 +58,7 @@ Copy `.env.example` to `.env` and fill in your key:
 cp .env.example .env
 ```
 
-Then load it before running anything:
-
-```bash
-export $(grep -v '^#' .env | xargs)     # Windows (PowerShell): see note below
-```
-
-> **Windows PowerShell users:** instead run
-> `Get-Content .env | ForEach-Object { if ($_ -match '(.+?)=(.+)') { [System.Environment]::SetEnvironmentVariable($matches[1], $matches[2]) } }`
+That's it -- every local entry point (`local_chat.py`, `app.py`, `local_web.py`, `local_agent_chat.py`) automatically loads `.env` on startup, so nothing needs to be manually exported into your shell. `.env` is gitignored, so it never gets committed.
 
 ### 4. Customize your agent
 

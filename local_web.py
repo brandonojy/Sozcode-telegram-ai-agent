@@ -15,12 +15,15 @@ step. Only run this where you're the only one who can reach it
 (i.e. on your own machine, not exposed to the network).
 """
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 
 from chat_ui import render_chat_page
 from local_agent import local_agent
 from trace_utils import run_chat_turn
+
+load_dotenv()  # picks up a local .env file, if you have one
 
 app = FastAPI()
 

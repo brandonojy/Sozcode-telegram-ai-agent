@@ -40,6 +40,7 @@ import asyncio
 import os
 
 import httpx
+from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from openai import AsyncOpenAI
@@ -50,6 +51,12 @@ from admin import ADMIN_PAGE_HTML
 from agent import agent
 from chat_ui import render_chat_page
 from trace_utils import run_chat_turn, stream_event_to_message
+
+# Only affects local runs -- Vercel injects real environment variables
+# directly, and load_dotenv() is a no-op if there's no .env file (as
+# there won't be on Vercel, since .env is gitignored and never
+# deployed).
+load_dotenv()
 
 app = FastAPI()
 

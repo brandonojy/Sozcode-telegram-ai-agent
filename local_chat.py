@@ -8,9 +8,13 @@ Run it with:
 
 import asyncio
 
+from dotenv import load_dotenv
+
 from agents import Runner
 
 from agent import agent
+
+load_dotenv()  # picks up a local .env file, if you have one
 
 
 async def main():
