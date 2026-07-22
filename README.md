@@ -40,7 +40,21 @@ If your instructor gave you a GitHub template link, click **"Use this template"*
 - **Easiest, no install:** open your new repo on github.com and press the `.` key (period) -- this opens a full code editor in your browser (github.dev). Edit `agent.py` right there.
 - **Or locally:** `git clone` your repo and open it in any editor.
 
-### 2. Install dependencies
+### 2. Install Python (skip if you already have it)
+
+You need Python 3.10 or newer. Check with:
+
+```bash
+python3 --version
+```
+
+If that fails or shows an older version:
+
+- **macOS:** `brew install python3` (or download the installer from [python.org](https://www.python.org/downloads/))
+- **Windows:** download the installer from [python.org](https://www.python.org/downloads/) -- make sure to check **"Add Python to PATH"** during install
+- **Linux:** usually preinstalled; if not, `sudo apt install python3 python3-venv` (Debian/Ubuntu) or your distro's equivalent
+
+### 3. Install dependencies
 
 In a terminal, inside the project folder:
 
@@ -50,7 +64,9 @@ source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Set your OpenAI API key
+This creates an isolated environment (`.venv`) and installs everything the project needs (`openai-agents`, `openai`, `fastapi`, `httpx`, `yfinance`, `uvicorn`, `python-dotenv`) into it, without touching your system Python.
+
+### 4. Set your OpenAI API key
 
 Copy `.env.example` to `.env` and fill in your key:
 
@@ -60,14 +76,14 @@ cp .env.example .env
 
 That's it -- every local entry point (`local_chat.py`, `app.py`, `local_web.py`, `local_agent_chat.py`) automatically loads `.env` on startup, so nothing needs to be manually exported into your shell. `.env` is gitignored, so it never gets committed.
 
-### 4. Customize your agent
+### 5. Customize your agent
 
 Open [`agent.py`](agent.py) and edit:
 
 - **`instructions`** -- your agent's personality and rules
 - **`tools`** -- functions your agent can call (there are two examples already in there)
 
-### 5. Chat with it in the terminal
+### 6. Chat with it in the terminal
 
 ```bash
 python local_chat.py
