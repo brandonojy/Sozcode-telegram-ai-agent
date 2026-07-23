@@ -6,6 +6,25 @@ You're going to build an AI agent with the [OpenAI Agents SDK](https://openai.gi
 
 New to the Agents SDK? Work through [`notebooks/`](notebooks/) first -- it builds up every concept used here (agents, tools, multi-tool iteration, hosted tools, file handling, memory) step by step before you touch this repo.
 
+## Running it
+
+Quick reference for coming back to this later. Assumes you've already done the one-time setup in Part 1 below (Python installed, `.venv` created, dependencies installed, `.env` filled in with your API key).
+
+```bash
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+```
+
+Then pick what you want to run:
+
+| Command | Opens | Talks to |
+|---|---|---|
+| `python local_chat.py` | Terminal chat | Your Telegram agent (`agent.py`) -- fastest feedback loop |
+| `uvicorn app:app --reload`, then visit `http://127.0.0.1:8000/chat` | Web chat | Your Telegram agent (`agent.py`) -- same server also serves `/webhook` and `/setup` |
+| `python local_agent_chat.py` | Terminal chat | The shell-enabled local agent (`local_agent.py`) |
+| `uvicorn local_web:app --port 8001 --reload`, then visit `http://127.0.0.1:8001/chat` | Web chat | The shell-enabled local agent (`local_agent.py`) |
+
+First time here, or starting fresh? Follow Part 1 below for the full setup.
+
 ## How it fits together
 
 ```
